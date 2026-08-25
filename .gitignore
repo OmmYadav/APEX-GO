@@ -1,0 +1,29 @@
+# Byte-compiled / optimized files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environments
+.venv
+env/
+venv/
+ENV/
+
+# Configuration / Secrets
+.env
+*.env
+
+# IDE / Editor files
+.vscode/
+.idea/
+*.swp
+
+# Node / Frontend
+node_modules/
+dist/
+build/
+.output/
+
+# OS files
+.DS_Store
+Thumbs.db
