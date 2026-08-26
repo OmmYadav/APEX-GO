@@ -7,6 +7,7 @@ interface HeaderProps {
   symbols: string[];
   currentPrice: number;
   priceChange24h: number;
+  isWsConnected?: boolean;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -15,6 +16,7 @@ export const Header: React.FC<HeaderProps> = ({
   symbols,
   currentPrice,
   priceChange24h,
+  isWsConnected = true,
 }) => {
   const isPositive = priceChange24h >= 0;
 
@@ -95,12 +97,12 @@ export const Header: React.FC<HeaderProps> = ({
 
       {/* Right Controls */}
       <div className="flex items-center space-x-4">
-        <div className="flex items-center space-x-2 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-2.5 py-1 rounded-full text-[11px] font-medium">
+        <div className={`flex items-center space-x-2 border px-2.5 py-1 rounded-full text-[11px] font-medium ${isWsConnected ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-amber-500/10 border-amber-500/20 text-amber-400'}`}>
           <span className="relative flex h-2 w-2">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+            <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${isWsConnected ? 'bg-emerald-400' : 'bg-amber-400'}`}></span>
+            <span className={`relative inline-flex rounded-full h-2 w-2 ${isWsConnected ? 'bg-emerald-500' : 'bg-amber-500'}`}></span>
           </span>
-          <span>Delta Testnet Live</span>
+          <span>{isWsConnected ? 'Delta Testnet Live (WS)' : 'Delta API Active'}</span>
         </div>
 
         <button className="flex items-center space-x-1.5 bg-[#1a2233] hover:bg-[#253047] border border-[#2a3449] px-2.5 py-1 rounded text-slate-300 transition-colors">
