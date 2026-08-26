@@ -78,8 +78,16 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
       wickDownColor: '#ff1744',
     });
 
-    // Format data for lightweight-charts
-    const formattedCandles = data.map((c) => ({
+    // Format, deduplicate and sort data for lightweight-charts (timestamps must be strictly ascending)
+    const candleMap = new Map<number, CandleData>();
+    data.forEach((c) => {
+      if (c && c.time && !isNaN(c.time)) {
+        candleMap.set(c.time, c);
+      }
+    });
+    const sortedCandles = Array.from(candleMap.values()).sort((a, b) => a.time - b.time);
+
+    const formattedCandles = sortedCandles.map((c) => ({
       time: c.time as any,
       open: c.open,
       high: c.high,
@@ -100,7 +108,7 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
       scaleMargins: { top: 0.8, bottom: 0 },
     });
 
-    const formattedVolume = data.map((c) => ({
+    const formattedVolume = sortedCandles.map((c) => ({
       time: c.time as any,
       value: c.volume,
       color: c.close >= c.open ? 'rgba(0, 230, 118, 0.25)' : 'rgba(255, 23, 68, 0.25)',

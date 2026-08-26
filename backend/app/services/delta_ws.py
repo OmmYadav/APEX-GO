@@ -99,16 +99,36 @@ class CandleStore:
         if buf is None:
             return
 
+    def upsert(self, symbol: str, candle: Candle) -> None:
+        """
+        Insert or update the latest candle for ``symbol``.
+
+        If the incoming candle's timestamp matches the last candle in the
+        buffer, update it in place (preserve original open price, expand
+        high/low, update close). Otherwise append a new bar.
+        """
+        buf = self._buffers.get(symbol)
+        if buf is None:
+            return
+
         if buf and buf[-1].time == candle.time:
-            # Same bar — update in place
-            buf[-1] = candle
-        else:
+            # Same bar — update in place: preserve original open, expand high/low
+            prev = buf[-1]
+            buf[-1] = Candle(
+                time=candle.time,
+                open=prev.open,
+                high=max(prev.high, candle.high, candle.close),
+                low=min(prev.low, candle.low, candle.close),
+                close=candle.close,
+                volume=max(prev.volume, candle.volume),
+            )
+        elif not buf or candle.time > buf[-1].time:
             buf.append(candle)
 
         # Notify listeners
         for cb in self._listeners:
             try:
-                cb(symbol, candle)
+                cb(symbol, buf[-1])
             except Exception:
                 logger.exception("Listener error")
 
@@ -154,17 +174,25 @@ async def _fetch_history(
             return []
 
         raw_candles = data.get("result", [])
-        candles = [
-            Candle(
-                time=int(c["time"]),
-                open=float(c["open"]),
-                high=float(c["high"]),
-                low=float(c["low"]),
-                close=float(c["close"]),
-                volume=float(c.get("volume", 0)),
+        res_sec = _resolution_to_seconds(resolution)
+        candles = []
+        for c in raw_candles:
+            t = int(c["time"])
+            if t > 1e14:
+                t //= 1_000_000
+            elif t > 1e11:
+                t //= 1_000
+            t_bucket = (t // res_sec) * res_sec
+            candles.append(
+                Candle(
+                    time=t_bucket,
+                    open=float(c["open"]),
+                    high=float(c["high"]),
+                    low=float(c["low"]),
+                    close=float(c["close"]),
+                    volume=float(c.get("volume", 0)),
+                )
             )
-            for c in raw_candles
-        ]
         # API returns newest-first sometimes; ensure ascending order
         candles.sort(key=lambda c: c.time)
         return candles[-count:]
@@ -391,12 +419,21 @@ class DeltaWSClient:
         """Parse a raw candlestick message and upsert into the store."""
         try:
             symbol = msg["sy"]
-            # Delta sends timestamp in microseconds; convert to seconds
-            ts_micro = msg["ts"]
-            ts_seconds = int(ts_micro // 1_000_000)
+            ts = msg["ts"]
+
+            if ts > 1e14:        # microseconds
+                ts_sec = ts // 1_000_000
+            elif ts > 1e11:      # milliseconds
+                ts_sec = ts // 1_000
+            else:
+                ts_sec = ts
+
+            # Bucket timestamp to resolution window (e.g. 60s for 1m)
+            res_sec = _resolution_to_seconds(self.resolution)
+            candle_time = (int(ts_sec) // res_sec) * res_sec
 
             candle = Candle(
-                time=ts_seconds,
+                time=candle_time,
                 open=float(msg["o"]),
                 high=float(msg["h"]),
                 low=float(msg["l"]),
